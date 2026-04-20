@@ -6,7 +6,10 @@ pytesseract.pytesseract.tesseract_cmd = "/opt/homebrew/bin/tesseract"
 def extract_text_boxes(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    data = pytesseract.image_to_data(gray, output_type=pytesseract.Output.DICT)
+    data = pytesseract.image_to_data(
+        gray,
+        output_type=pytesseract.Output.DICT
+    )
 
     boxes = []
 
@@ -15,11 +18,17 @@ def extract_text_boxes(img):
         conf = int(data["conf"][i])
 
         if conf > 60 and len(text) > 1:
-            x, y, w, h = data["left"][i], data["top"][i], data["width"][i], data["height"][i]
+            x = data["left"][i]
+            y = data["top"][i]
+            w = data["width"][i]
+            h = data["height"][i]
 
             boxes.append({
                 "text": text,
-                "box": (x, y, w, h)
+                "x": x,
+                "y": y,
+                "w": w,
+                "h": h
             })
 
     return boxes
