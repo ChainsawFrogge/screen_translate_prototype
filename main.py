@@ -1,58 +1,90 @@
-import sys
-import time
+import time, os
 import threading
-import mss
-import numpy as np
+from Cocoa import NSApplication
+from Cocoa import NSFont, NSFontManager
+from CoreText import CTFontManagerRegisterFontsForURL
+from Foundation import NSDictionary
+from Foundation import NSURL
 
-from PyQt6 import QtWidgets
+from overlay import Overlay, OverlayWindow
 
-from overlay import Overlay
 from ocr import extract_text_boxes
 from translate import translate
 
-# screen capture
+import mss
+import numpy as np
+
 sct = mss.mss()
 monitor = sct.monitors[1]
 
 def capture():
-    img = np.array(sct.grab(monitor))
-    return img
+    return np.array(sct.grab(monitor))
+
+def convert_y(y, h):
+    screen_h = monitor["height"]
+    return screen_h - y - h
+
+def load_font(path):
+    url = NSURL.fileURLWithPath_(path)
+    success = CTFontManagerRegisterFontsForURL(url, 0, None)
+    print("FONT REGISTERED:", success)
+    for f in NSFontManager.sharedFontManager().availableFonts():
+        if "pokemon" in f.lower():
+            print(f)
 
 class App:
     def __init__(self):
-        self.app = QtWidgets.QApplication(sys.argv)
-        self.overlay = Overlay()
+        self.app = NSApplication.sharedApplication()
 
-    def run_loop(self):
-        seen = set()
+        self.window = OverlayWindow.alloc().init()
+
+        font_path = os.path.join(
+            os.path.dirname(__file__),
+            "./assets/fonts/kvn-pokemon-gen-5.ttf"
+        )
+
+        load_font(font_path)
+        self.font = NSFont.fontWithName_size_("REAL_NAME_HERE", 18)
+        self.overlay = Overlay(self.window, self.font)
+
+        from Cocoa import NSFontManager
+
+        fonts = NSFontManager.sharedFontManager().availableFonts()
+
+        for f in fonts:
+            if "pokemon" in f.lower():
+                print("FOUND FONT:", f)
+
+    def worker(self):
+        last = {}
 
         while True:
             img = capture()
             boxes = extract_text_boxes(img)
 
-            self.overlay.clear()
+            new_state = {}
 
             for b in boxes:
-                text = b["text"]
-                translated = translate(text)
+                text = translate(b["text"])
+                key = (b["x"], b["y"])
 
-                key = (text, b["x"], b["y"])
-                if key not in seen:
-                    seen.add(key)
+                new_state[key] = text
 
-                self.overlay.draw_text(
-                    b["x"],
-                    b["y"],
-                    translated
-                )
+                if last.get(key) != text:
+                    y = convert_y(b["y"], b["h"])
+                    self.overlay.draw_text(b["x"], y, text)
 
-            time.sleep(0.5)
+            last = new_state
+
+            time.sleep(0.8)
 
     def run(self):
-        thread = threading.Thread(target=self.run_loop, daemon=True)
-        thread.start()
+        t = threading.Thread(target=self.worker, daemon=True)
+        t.start()
 
-        sys.exit(self.app.exec())
+        self.window.makeKeyAndOrderFront_(None)
+        self.app.run()
+
 
 if __name__ == "__main__":
     App().run()
