@@ -1,42 +1,58 @@
+import sys
 import time
+import threading
 import mss
 import numpy as np
 
+from PyQt6 import QtWidgets
+
+from overlay import Overlay
 from ocr import extract_text_boxes
 from translate import translate
-from overlay import Overlay
 
+# screen capture
 sct = mss.mss()
-
 monitor = sct.monitors[1]
-
-overlay = Overlay()
 
 def capture():
     img = np.array(sct.grab(monitor))
     return img
 
-# cache for stable rendering
-seen = {}
+class App:
+    def __init__(self):
+        self.app = QtWidgets.QApplication(sys.argv)
+        self.overlay = Overlay()
 
-while True:
-    img = capture()
-    boxes = extract_text_boxes(img)
+    def run_loop(self):
+        seen = set()
 
-    overlay.clear()
+        while True:
+            img = capture()
+            boxes = extract_text_boxes(img)
 
-    for b in boxes:
-        text = b["text"]
-        x, y = b["x"], b["y"]
+            self.overlay.clear()
 
-        translated = translate(text)
+            for b in boxes:
+                text = b["text"]
+                translated = translate(text)
 
-        # keep text persistent
-        key = (x, y, text)
-        seen[key] = translated
+                key = (text, b["x"], b["y"])
+                if key not in seen:
+                    seen.add(key)
 
-        overlay.draw_text(x, y, translated)
+                self.overlay.draw_text(
+                    b["x"],
+                    b["y"],
+                    translated
+                )
 
-    overlay.root.update()
+            time.sleep(0.5)
 
-    time.sleep(0.5)
+    def run(self):
+        thread = threading.Thread(target=self.run_loop, daemon=True)
+        thread.start()
+
+        sys.exit(self.app.exec())
+
+if __name__ == "__main__":
+    App().run()

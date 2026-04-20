@@ -1,26 +1,41 @@
-import tkinter as tk
+from PyQt6 import QtWidgets, QtCore, QtGui
+import sys
 
-class Overlay:
+class Overlay(QtWidgets.QWidget):
     def __init__(self):
-        self.root = tk.Tk()
-        self.root.attributes("-topmost", True)
-        self.root.attributes("-transparentcolor", "black")
-        self.root.overrideredirect(True)
+        super().__init__()
 
-        self.canvas = tk.Canvas(self.root, bg="black", highlightthickness=0)
-        self.canvas.pack(fill="both", expand=True)
-
-    def draw_text(self, x, y, text):
-        self.canvas.create_text(
-            x, y,
-            text=text,
-            fill="white",
-            anchor="nw",
-            font=("Arial", 12)
+        # Make window borderless + always on top
+        self.setWindowFlags(
+            QtCore.Qt.WindowType.FramelessWindowHint |
+            QtCore.Qt.WindowType.WindowStaysOnTopHint |
+            QtCore.Qt.WindowType.Tool
         )
 
-    def clear(self):
-        self.canvas.delete("all")
+        # Make background transparent
+        self.setAttribute(QtCore.Qt.WidgetAttribute.WA_TranslucentBackground)
 
-    def run(self):
-        self.root.mainloop()
+        # Full screen
+        self.showFullScreen()
+
+        self.labels = []
+
+    def clear(self):
+        for label in self.labels:
+            label.deleteLater()
+        self.labels = []
+
+    def draw_text(self, x, y, text):
+        label = QtWidgets.QLabel(self)
+        label.setText(text)
+        label.setStyleSheet("""
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            background: transparent;
+        """)
+        label.adjustSize()
+        label.move(x, y)
+        label.show()
+
+        self.labels.append(label)
