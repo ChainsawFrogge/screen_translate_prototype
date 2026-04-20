@@ -1,28 +1,42 @@
-from capture import capture_screen
-from ocr import extract_text
-from translate import translate
 import time
+import mss
+import numpy as np
 
+from ocr import extract_text_boxes
+from translate import translate
+from overlay import Overlay
 
-def is_valid(text):
-    text = text.strip()
-    return len(text) > 5 and not text.isdigit()
+sct = mss.mss()
 
-seen = set()
+monitor = sct.monitors[1]
+
+overlay = Overlay()
+
+def capture():
+    img = np.array(sct.grab(monitor))
+    return img
+
+# cache for stable rendering
+seen = {}
 
 while True:
-    img = capture_screen()
-    text = extract_text(img)
-    
-    if text.strip() and is_valid(text):
-        print("Original:", text)
-    
-    if text.strip() and text not in seen:
-        seen.add(text)
+    img = capture()
+    boxes = extract_text_boxes(img)
+
+    overlay.clear()
+
+    for b in boxes:
+        text = b["text"]
+        x, y = b["x"], b["y"]
+
         translated = translate(text)
 
-        print("Original:", text)
-        print("Translated:", translated)
-        print("-----")
+        # keep text persistent
+        key = (x, y, text)
+        seen[key] = translated
 
-    time.sleep(1)
+        overlay.draw_text(x, y, translated)
+
+    overlay.root.update()
+
+    time.sleep(0.5)
